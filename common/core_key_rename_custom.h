@@ -46,6 +46,14 @@ static inline void core_key_rename(int cmd_id, const char **name, int *name_len)
             *name = "BIN";
             *name_len = 3;
             return;
+        case CMD_TO_INCH:
+            *name = "\17in";
+            *name_len = 3;
+            return;
+        case CMD_TO_METER:
+            *name = "\17m";
+            *name_len = 2;
+            return;
         case CMD_TO_HR:
             *name = "\17Hour";
             *name_len = 5;

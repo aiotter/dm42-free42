@@ -525,6 +525,9 @@
 
 #define CMD_SENTINEL    475
 
+// CUSTOM
+#include "core_tables_custom.h"
+
 
 /* command_spec.argtype */
 
