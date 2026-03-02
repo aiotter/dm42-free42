@@ -523,7 +523,11 @@
 #define CMD_WIDTH       473
 #define CMD_HEIGHT      474
 
-#define CMD_SENTINEL    475
+/* Custom Commands */
+#define CMD_TO_INCH     475
+#define CMD_TO_METER    476
+
+#define CMD_SENTINEL    477
 
 
 /* command_spec.argtype */

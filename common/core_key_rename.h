@@ -38,6 +38,14 @@ static inline void core_key_rename(int cmd_id, const char **name, int *name_len)
             *name = "0b11";
             *name_len = 4;
             return;
+        case CMD_TO_INCH:
+            *name = "\17in";
+            *name_len = 3;
+            return;
+        case CMD_TO_METER:
+            *name = "\17m";
+            *name_len = 2;
+            return;
         default:
             *name = cmd_array[cmd_id].name;
             *name_len = cmd_array[cmd_id].name_length;

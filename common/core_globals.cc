@@ -299,14 +299,14 @@ const menu_spec menus[] = {
                         { 0x1000 + CMD_CLLCD,  0, "" },
                         { 0x1000 + CMD_CLMENU, 0, "" },
                         { 0x1000 + CMD_CLALLa, 0, "" } } },
-    { /* MENU_CONVERT1 */ MENU_NONE, MENU_CONVERT2, MENU_CONVERT2,
+    { /* MENU_CONVERT1 */ MENU_NONE, MENU_CONVERT_CUSTOM, MENU_CONVERT2,
                       { { 0x1000 + CMD_TO_DEG, 0, "" },
                         { 0x1000 + CMD_TO_RAD, 0, "" },
                         { 0x1000 + CMD_TO_HR,  0, "" },
                         { 0x1000 + CMD_TO_HMS, 0, "" },
                         { 0x1000 + CMD_TO_REC, 0, "" },
                         { 0x1000 + CMD_TO_POL, 0, "" } } },
-    { /* MENU_CONVERT2 */ MENU_NONE, MENU_CONVERT1, MENU_CONVERT1,
+    { /* MENU_CONVERT2 */ MENU_NONE, MENU_CONVERT1, MENU_CONVERT_CUSTOM,
                       { { 0x1000 + CMD_IP,   0, "" },
                         { 0x1000 + CMD_FP,   0, "" },
                         { 0x1000 + CMD_RND,  0, "" },
@@ -613,7 +613,14 @@ const menu_spec menus[] = {
                         { 0,                 3, "ACC"  },
                         { 0x1000 + CMD_NULL, 0, ""     },
                         { 0x1000 + CMD_NULL, 0, ""     },
-                        { 0,                 1, "\3"   } } }
+                        { 0,                 1, "\3"   } } },
+    { /* MENU_CONVERT_CUSTOM */ MENU_NONE, MENU_CONVERT2, MENU_CONVERT1,
+                      { { 0x1000 + CMD_TO_INCH, 0, "" },
+                        { 0x1000 + CMD_TO_METER, 0, "" },
+                        { 0x1000 + CMD_NULL,    0, "" },
+                        { 0x1000 + CMD_NULL,    0, "" },
+                        { 0x1000 + CMD_NULL,    0, "" },
+                        { 0x1000 + CMD_NULL,    0, "" } } }
 };
 
 

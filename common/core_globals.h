@@ -211,6 +211,7 @@ extern const error_spec errors[];
 #define MENU_SOLVE         72
 #define MENU_INTEG         73
 #define MENU_INTEG_PARAMS  74
+#define MENU_CONVERT_CUSTOM 75
 
 
 struct menu_item_spec {

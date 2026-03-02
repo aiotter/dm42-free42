@@ -26,6 +26,9 @@
 #include "core_commands6.h"
 #include "core_commands7.h"
 
+// Compile custom commands without requiring per-platform build list changes.
+#include "core_commands_custom.cc"
+
 
 /* rttypes special cases */
 
@@ -556,6 +559,10 @@ const command_spec cmd_array[] =
     /* For Plus42 Compatibility */
     { /* WIDTH */       docmd_width,       "WIDTH",               0x00, 0x00, 0xa2, 0x72,  5, ARG_NONE,   0, NA_T },
     { /* HEIGHT */      docmd_height,      "HEIGHT",              0x00, 0x00, 0xa2, 0x73,  6, ARG_NONE,   0, NA_T },
+
+    /* Custom Commands */
+    { /* TO_INCH */     docmd_to_inch,     "\17INCH",             0x00, 0x00, 0xa7, 0xfe,  3, ARG_NONE,   1, 0x05 },
+    { /* TO_METER */    docmd_to_meter,    "\17METER",            0x00, 0x00, 0xa7, 0xff,  2, ARG_NONE,   1, 0x05 },
 };
 
 /*
