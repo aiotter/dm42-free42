@@ -29,6 +29,8 @@
 #include "shell.h"
 #include "shell_spool.h"
 
+#include "core_key_rename.h"
+
 /********************/
 /* HP-42S font data */
 /********************/
@@ -2447,10 +2449,11 @@ void redisplay() {
                         }
                     }
                 }
-                if (scmd == CMD_NONE)
-                    draw_key(i, is_flag, 1, cmd->name, cmd->name_length);
-                else
-                    draw_key(i, is_flag, 1, cmd_array[scmd].name, cmd_array[scmd].name_length);
+
+                const char *display_name;
+                int display_name_len;
+                core_key_rename(scmd == CMD_NONE ? cmd_id : scmd, &display_name, &display_name_len);
+                draw_key(i, is_flag, 1, display_name, display_name_len);
             }
         }
         avail_rows = 1;
