@@ -46,6 +46,14 @@ static inline void core_key_rename(int cmd_id, const char **name, int *name_len)
             *name = "\17m";
             *name_len = 2;
             return;
+        case CMD_TO_HR:
+            *name = "\17Hour";
+            *name_len = 5;
+            return;
+        case CMD_TO_HMS:
+            *name = "\17H.MS";
+            *name_len = 5;
+            return;
         default:
             *name = cmd_array[cmd_id].name;
             *name_len = cmd_array[cmd_id].name_length;
