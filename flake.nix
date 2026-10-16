@@ -7,73 +7,101 @@
 
   outputs =
     { self, nixpkgs }:
-    let
-      lib = nixpkgs.lib;
-      systems = lib.platforms.unix;
-      forAllSystems = f: lib.genAttrs systems (system: f system);
-    in
     {
-      packages = forAllSystems (
+      packages = nixpkgs.lib.genAttrs nixpkgs.lib.platforms.unix (
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          src = ./.;
+          inherit (pkgs) lib;
+
+          packages = self.packages.${system};
+          version = "unstable";
+
+          mkSource =
+            filesets:
+            lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions filesets;
+            };
         in
         {
           default = self.packages.${system}.gtk;
 
+          intel-lib =
+            pkgs.runCommandCC "free42-intel-lib-${version}"
+              {
+                src = mkSource [
+                  ./inteldecimal/IntelRDFPMathLib20U1.tar.gz
+                  ./gtk/build-intel-lib.sh
+                  ./gtk/intel-lib-linux.patch
+                  ./gtk/intel-lib-unknown-32bit.patch
+                  ./gtk/intel-lib-unknown-64bit.patch
+                ];
+                sourceRoot = "source/gtk";
+                nativeBuildInputs = with pkgs; [ which ] ++ lib.optional stdenv.buildPlatform.isDarwin cctools;
+              }
+              ''
+                runPhase unpackPhase
+                MK=make sh ./build-intel-lib.sh
+                install -Dm644 gcc111libbid.a "$out/lib/gcc111libbid.a"
+                runPhase fixupPhase
+              '';
+
           gtk = pkgs.stdenv.mkDerivation {
             pname = "free42-gtk";
-            version = "unstable";
-            inherit src;
+            inherit version;
+            src = mkSource [
+              ./gtk
+              ./common
+              ./skins
+              ./windows/VERSION.h
+            ];
+            sourceRoot = "source/gtk";
 
             dontConfigure = true;
+            # Darwin does not expose sincos, so use the separate sin/cos calls.
+            env.NIX_CFLAGS_COMPILE = lib.concatStringsSep " " (
+              [ "-g0" ] ++ lib.optional pkgs.stdenv.hostPlatform.isDarwin "-UHAVE_SINCOS"
+            );
+            enableParallelBuilding = true;
 
-            nativeBuildInputs =
-              with pkgs;
-              [
-                pkg-config
-                gtk3
-                which
-                makeWrapper
-              ]
-              ++ lib.optional stdenv.isDarwin cctools;
+            nativeBuildInputs = with pkgs; [
+              pkg-config
+              glib
+              wrapGAppsHook3
+            ];
 
-            buildPhase = ''
-              runHook preBuild
-              patchShebangs build-gtk gtk/build-intel-lib.sh
-              ./build-gtk
-              runHook postBuild
+            buildInputs = with pkgs; [ gtk3 ];
+
+            # Leave AUDIO_ALSA unset so all platforms use GTK's default beep backend.
+            makeFlags = [ "BCD_MATH=1" ];
+
+            preBuild = ''
+              make cleaner symlinks
+              cp -fv ${packages.intel-lib}/lib/gcc111libbid.a .
             '';
 
             installPhase = ''
               runHook preInstall
 
-              pkgName="Free42$(uname -s)"
-              archive="packages/$pkgName.tgz"
-
-              mkdir -p "$out/packages" "$out/share" "$out/bin"
-              cp -v "$archive" "$out/packages/"
-              tar -xzf "$archive" -C "$out/share"
-
-              wrapperArgs=()
-              if [ "$(uname -s)" = "Darwin" ]; then
-                wrapperArgs+=(--unset DISPLAY)
-                wrapperArgs+=(--set-default GDK_BACKEND quartz)
-              fi
-
-              makeWrapper "$out/share/$pkgName/free42bin" "$out/bin/free42bin" "''${wrapperArgs[@]}"
-              makeWrapper "$out/share/$pkgName/free42dec" "$out/bin/free42dec" "''${wrapperArgs[@]}"
+              mkdir -p "$out/bin" "$out/share/doc/free42" "$out/share/icons/hicolor/128x128/apps"
+              install free42dec "$out/bin/free42dec"
+              cp README.txt "$out/share/doc/free42/README.txt"
+              cp icon-128x128.png "$out/share/icons/hicolor/128x128/apps/free42.png"
 
               runHook postInstall
             '';
 
-            meta = with pkgs.lib; {
-              description = "Free42 GTK package built via build-gtk";
+            preFixup = lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+              gappsWrapperArgs+=(--unset DISPLAY --set-default GDK_BACKEND quartz)
+            '';
+
+            meta = with lib; {
+              description = "Free42 GTK calculator";
               homepage = "https://thomasokken.com/free42/";
               license = licenses.gpl2Only;
-              platforms = systems;
-              mainProgram = "free42bin";
+              platforms = platforms.unix;
+              mainProgram = "free42dec";
             };
           };
         }
