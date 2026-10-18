@@ -123,6 +123,9 @@ void core_redisplay();
 
 #ifdef __cplusplus
 } // extern "C"
+
+// CUSTOM: reg2str overload returning the radix label, including for an empty X.
+int reg2str(char *buf, int buflen, reg_id_t reg_id, int *base);
 #endif
 
 char* core_display_buffer();

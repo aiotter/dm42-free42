@@ -15,6 +15,9 @@
 
 #include "shell.h"
 
+// CUSTOM
+#include "core_base_custom.h"
+
 /*
 int prgmline2buf(char *buf, int len, int4 line, int highlight,
                         int cmd, arg_struct *arg,
@@ -278,6 +281,14 @@ void core_redisplay() {
 
 
 int reg2str(char *buf, int buflen, reg_id_t reg_id) {
+  int base;
+  return reg2str(buf, buflen, reg_id, &base);
+}
+
+extern "C++" {
+
+int reg2str(char *buf, int buflen, reg_id_t reg_id, int *base) {
+  *base = 0;
   vartype *reg;
   int len;
 
@@ -291,6 +302,7 @@ int reg2str(char *buf, int buflen, reg_id_t reg_id) {
       case AUX_REG_X:
         if (get_dynstack_size() == 0) {
           buf[0] = 0;
+          *base = base_display_base();
           return 0;
         }
         reg = reg_x;
@@ -310,11 +322,13 @@ int reg2str(char *buf, int buflen, reg_id_t reg_id) {
     }
     memcpy(buf, reg_alpha, len);
   } else
-    len = vartype2string(reg, buf, buflen-1);
+    len = custom_vartype2string(reg, buf, buflen, base);
   
   buf[len] = 0;
   return len;
 }
+
+} // extern "C++"
 
 void clear_no_keystrokes_yet() {
   no_keystrokes_yet = 0;

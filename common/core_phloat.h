@@ -190,6 +190,11 @@ int phloat2string(phloat d, char *buf, int buflen,
                   int base_mode, int digits, int dispmode,
                   int thousandssep, int max_mant_digits = 12,
                   const char *format = NULL);
+// CUSTOM: phloat2string overload accepting a base without changing the selected base.
+int phloat2string(phloat d, char *buf, int buflen,
+                  int base_mode, int digits, int dispmode,
+                  int thousandssep, int max_mant_digits,
+                  const char *format, int base);
 int string2phloat(const char *buf, int buflen, phloat *d);
 
 

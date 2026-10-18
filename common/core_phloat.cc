@@ -1017,6 +1017,13 @@ double decimal2double(void *data, bool pin_magnitude /* = false */) {
 int phloat2string(phloat pd, char *buf, int buflen, int base_mode, int digits,
                          int dispmode, int thousandssep, int max_mant_digits,
                          const char *format) {
+    return phloat2string(pd, buf, buflen, base_mode, digits, dispmode,
+                         thousandssep, max_mant_digits, format, get_base());
+}
+
+int phloat2string(phloat pd, char *buf, int buflen, int base_mode, int digits,
+                             int dispmode, int thousandssep, int max_mant_digits,
+                             const char *format, int base) {
     int group1, group2;
     char dec, sep;
     if (format == NULL) {
@@ -1052,7 +1059,6 @@ int phloat2string(phloat pd, char *buf, int buflen, int base_mode, int digits,
     }
 
     /* base_mode: 0=only decimal, 1=all bases, 2=SHOW */
-    int base = get_base();
     int wsize = effective_wsize();
     if (base_mode == 1
             && (base != 10 || mode_dec_int && mode_appmenu >= MENU_BASE1 && mode_appmenu <= MENU_BASE_DISP)

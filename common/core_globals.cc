@@ -37,6 +37,9 @@
 #include "bid_functions.h"
 #endif
 
+// CUSTOM
+#include "core_base_custom.h"
+
 // File used for reading and writing the state file, and for importing and
 // exporting programs. Since only one of these operations can be active at one
 // time, having one FILE pointer for all of them is sufficient.
@@ -4326,6 +4329,7 @@ void hard_reset(int reason) {
     mode_wsize = 36;
     mode_carry = false;
     mode_dec_int = false;
+    custom_base_reset();
     mode_bin_sep = false;
     mode_oct_sep = false;
     mode_dec_sep = false;

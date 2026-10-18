@@ -30,6 +30,9 @@
 #include "core_variables.h"
 #include "shell.h"
 
+// CUSTOM
+#include "core_base_custom.h"
+
 int no_menu_key_this_time = 0;
 
 static bool is_number_key(int shift, int key, bool *invalid) {
@@ -297,6 +300,9 @@ void keydown(int shift, int key) {
 
     flags.f.message = 0;
     flags.f.two_line_message = 0;
+
+    // CUSTOM: Handle alternate-base selection before a menu key can finish number entry.
+    if (!no_menu_key_this_time && custom_base_keydown(shift, key)) return;
 
     if (mode_number_entry && get_base() == 16 && key == KEY_SIGMA
             && get_front_menu() == MENU_BASE1) {

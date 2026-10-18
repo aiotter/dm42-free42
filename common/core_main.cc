@@ -35,6 +35,7 @@
 #include "core_variables.h"
 #include "shell.h"
 #include "shell_spool.h"
+#include "core_base_custom.h"
 
 #ifndef BCD_MATH
 // We need these locally for BID128->double conversion
@@ -321,6 +322,7 @@ static bool core_keydown_2(int key, bool *enqueued, int *repeat) {
 
     if (key == KEY_SHIFT) {
         set_shift(!mode_shift);
+        custom_base_shift_menu_changed();
         if (!mode_menu_static) {
             int menuid = get_front_menu();
             if (menuid == MENU_TOP_FCN || menuid == MENU_PGM_FCN1 || menuid == MENU_STAT1

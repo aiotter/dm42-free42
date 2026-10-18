@@ -29,7 +29,9 @@
 #include "shell.h"
 #include "shell_spool.h"
 
+// CUSTOM
 #include "core_key_rename_custom.h"
+#include "core_base_custom.h"
 
 /********************/
 /* HP-42S font data */
@@ -2453,6 +2455,7 @@ void redisplay() {
                 const char *display_name;
                 int display_name_len;
                 core_key_rename(scmd == CMD_NONE ? cmd_id : scmd, &display_name, &display_name_len);
+                custom_base_menu_item(menu_id, cmd_id, &display_name, &display_name_len, &is_flag);
                 draw_key(i, is_flag, 1, display_name, display_name_len);
             }
         }
