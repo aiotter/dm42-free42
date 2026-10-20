@@ -43,6 +43,9 @@
 #include "bid_functions.h"
 #endif
 
+// Keep the key-down and timer helpers in the core entry point's translation unit.
+#include "core_key_hold_custom.inc"
+
 #ifdef WINDOWS
 FILE *my_fopen(const char *name, const char *mode);
 int my_rename(const char *oldname, const char *newname);
@@ -483,7 +486,10 @@ static bool core_keydown_2(int key, bool *enqueued, int *repeat) {
         set_shift(false);
         if (mode_getkey && mode_running)
             set_annunciators(-1, -1, -1, 1, -1, -1);
+        const custom_key_hold_binding *binding = custom_key_hold_prepare(shift, key);
         keydown(shift, key);
+        if (binding != NULL)
+            custom_key_hold_after_keydown(binding);
         if (repeating != 0) {
             *repeat = repeating;
             repeating = 0;
@@ -526,6 +532,8 @@ int core_repeat() {
 void core_keytimeout1() {
     if (!initialized || quitting)
         return;
+
+    custom_key_hold_start_timer();
 
     if (pending_command == CMD_LINGER1 || pending_command == CMD_LINGER2)
         return;
@@ -578,6 +586,9 @@ void core_keytimeout2() {
 
 bool core_timeout3(bool repaint) {
     if (!initialized || quitting)
+        return false;
+
+    if (custom_key_hold_timeout(repaint))
         return false;
 
     if (mode_pause) {
