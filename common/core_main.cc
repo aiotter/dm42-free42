@@ -37,6 +37,7 @@
 #include "shell_spool.h"
 #include "core_base_custom.h"
 #include "core_history_custom.h"
+#include "core_program_tools_custom.h"
 
 #ifndef BCD_MATH
 // We need these locally for BID128->double conversion
@@ -90,6 +91,7 @@ void core_init(int read_saved_state, int4 version, const char *state_file_name, 
 
     phloat_init();
     custom_history_reset();
+    custom_program_tools_reset();
 
 #ifndef ARM
     char *state_file_name_crash = NULL;
@@ -199,6 +201,7 @@ void core_cleanup() {
         return;
 
     custom_history_reset();
+    custom_program_tools_reset();
     initialized = false;
     for (int i = 0; i <= sp; i++)
         free_vartype(stack[i]);
@@ -2396,6 +2399,7 @@ static void decode_string(unsigned char *buf, int *cmd, arg_struct *arg, char **
 
 void core_import_programs(int num_progs, const char *raw_file_name) {
     custom_history_reset();
+    custom_program_tools_reset();
     int byte1, byte2, suffix;
     int cmd, flag, str_len = 0;
     int done_flag = 0;
@@ -4963,6 +4967,7 @@ bool program_running() {
 }
 
 void do_interactive(int command) {
+    if (custom_program_find_command(command)) return;
     int err;
     if ((cmd_array[command].flags
                 & (flags.f.prgm_mode ? FLAG_NO_PRGM : FLAG_PRGM_ONLY)) != 0) {
@@ -5314,6 +5319,7 @@ void start_incomplete_command(int cmd_id) {
 }
 
 void finish_command_entry(bool refresh) {
+    if (custom_program_find_finish_entry()) return;
     if (pending_command == CMD_ASSIGNa) {
         pending_command = CMD_NONE;
         start_incomplete_command(CMD_ASSIGNb);

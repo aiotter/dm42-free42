@@ -32,6 +32,7 @@
 
 // CUSTOM
 #include "core_base_custom.h"
+#include "core_program_tools_custom.h"
 #include "core_history_custom.h"
 
 int no_menu_key_this_time = 0;
@@ -179,6 +180,8 @@ void keydown(int shift, int key) {
     flags.f.shift_state = shift;
 
     pending_command = CMD_NONE;
+
+    if (custom_program_find_keydown(shift, key)) return;
 
     if (key >= 1024 && key < 2048) {
         /* TODO: is this actually needed?
@@ -2452,6 +2455,8 @@ void keydown_normal_mode(int shift, int key) {
                             int cmd = find_builtin(name, length);
                             if (cmd == -1)
                                 pending_command = CMD_XEQ;
+                            else if (custom_program_find_command(cmd))
+                                return;
                             else if (cmd == CMD_CLALLa) {
                                 mode_clall = true;
                                 set_menu(MENULEVEL_ALPHA, MENU_NONE);
@@ -2693,6 +2698,7 @@ void keydown_normal_mode(int shift, int key) {
                         set_menu(level, MENU_NONE);
                 }
                 send_it_off:
+                if (custom_program_find_command(pending_command)) return;
                 if (flags.f.prgm_mode &&
                         (cmd_array[pending_command].flags & FLAG_IMMED) == 0) {
                     store_command_after(&pc, pending_command,

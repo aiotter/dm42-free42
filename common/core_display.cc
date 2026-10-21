@@ -32,6 +32,7 @@
 // CUSTOM
 #include "core_key_rename_custom.h"
 #include "core_base_custom.h"
+#include "core_program_tools_custom.h"
 
 /********************/
 /* HP-42S font data */
@@ -1321,6 +1322,7 @@ void display_y(int row) {
 }
 
 void display_incomplete_command(int row) {
+    if (custom_program_find_draw_incomplete(row)) return;
     char buf[40];
     int bufptr = 0;
     const command_spec *cmd = &cmd_array[incomplete_command];
@@ -2537,6 +2539,7 @@ void redisplay() {
         }
     }
 
+    custom_program_find_draw_prompt();
     flush_display();
 }
 

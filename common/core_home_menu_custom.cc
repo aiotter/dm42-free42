@@ -3,6 +3,7 @@
 #include "core_globals.h"
 #include "core_history_custom.h"
 #include "core_keydown.h"
+#include "core_program_tools_custom.h"
 #include "core_tables.h"
 
 namespace {
@@ -32,9 +33,9 @@ constexpr home_slot normal_home[CORE_HOME_KEY_COUNT] = {
 };
 
 constexpr home_slot program_home[CORE_HOME_KEY_COUNT] = {
-    {},
-    {},
-    {},
+    { bind("LBLs", core_program_label_jump), {} },
+    { bind("JUMP", core_program_follow), {} },
+    { bind("FIND\016", core_program_find_downward), bind("FIND^", core_program_find_upward) },
     {},
     { bind("AGAIN", core_repeat_last_command), {} },
     { bind("UNDO", core_undo), bind("REDO", core_redo) }
