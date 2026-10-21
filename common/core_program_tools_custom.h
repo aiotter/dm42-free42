@@ -21,6 +21,10 @@ bool core_program_find(bool reverse, bool *enqueued, int *repeat);
 #ifdef __cplusplus
 }
 
+// Move to the adjacent program's 00 line.
+// Call only after committing any pending program input.
+void custom_program_step(bool reverse);
+
 // The input hooks consume FIND queries before native handlers can edit a program.
 bool custom_program_find_keydown(int shift, int key);
 bool custom_program_find_command(int command);

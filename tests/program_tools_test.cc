@@ -134,6 +134,90 @@ static std::vector<std::vector<unsigned char>> programs() {
   for(int i=0;i<prgms_count;i++) bytes.emplace_back(prgms[i].text,prgms[i].text+prgms[i].size);
   return bytes;
 }
+
+static void shifted_arrow(int key) { press(KEY_SHIFT); press(key); }
+
+static void test_program_step() {
+  fixture f=setup();
+  auto bytes=programs();
+  int beeps=beep_calls;
+  size_t notices=shell_messages.size();
+  shifted_arrow(KEY_DOWN);
+  check(current_prgm==f.target_program&&pc==-1&&prgm_highlight_row==0,
+      "shift-down selects the next program's 00 line");
+  check(shell_messages.size()==notices&&beep_calls==beeps,"ordinary program movement has no wrap notice or sound");
+  bool queued; int repeat;
+  core_undo(&queued,&repeat); core_keyup();
+  check(current_prgm==f.main_program&&pc==f.sto_first,"UNDO restores the position before program movement");
+  core_redo(&queued,&repeat); core_keyup();
+  check(current_prgm==f.target_program&&pc==-1,"REDO restores the next program's 00 line");
+  pc=0; shifted_arrow(KEY_UP);
+  check(current_prgm==f.main_program&&pc==-1,"shift-up selects the previous program's 00 line from inside a program");
+  shifted_arrow(KEY_UP);
+  check(current_prgm==f.target_program&&pc==-1&&shell_messages.size()==notices+1
+      &&shell_messages.back()=="Back to Last"&&!flags.f.message,
+      "backward wrap selects the last program and returns from the modal notice");
+  check(beep_calls==beeps,"backward wrap does not make a sound");
+  shifted_arrow(KEY_DOWN);
+  check(current_prgm==f.main_program&&pc==-1&&shell_messages.size()==notices+2
+      &&shell_messages.back()=="Back to First"&&!flags.f.message,
+      "forward wrap selects the first program and returns from the modal notice");
+  shifted_arrow(KEY_DOWN);
+  check(current_prgm==f.target_program&&shell_messages.size()==notices+2,
+      "the next ordinary move does not open a modal notice");
+
+  // The repeat callback uses the same keydown branch as the initial press.
+  current_prgm=f.main_program; pc=f.sto_first;
+  press(KEY_SHIFT); core_keydown(KEY_DOWN,&queued,&repeat);
+  check(!queued&&repeat!=0&&current_prgm==f.target_program,"program movement enables key repeat");
+  check(core_repeat()==0&&current_prgm==f.main_program&&pc==-1
+      &&shell_messages.size()==notices+3&&shell_messages.back()=="Back to First",
+      "held shift-down reports wrapping and stops repeat after the modal notice");
+  core_keyup();
+  check(programs()==bytes&&beep_calls==beeps,"navigation and repeat preserve program bytes without sound");
+
+  // Ordinary arrows, named commands, and shifted arrows with menus keep line navigation.
+  current_prgm=f.main_program; pc=0;
+  press(KEY_DOWN);
+  check(current_prgm==f.main_program&&pc==f.sto_first,"unshifted down keeps single-line navigation");
+  press(KEY_UP);
+  check(current_prgm==f.main_program&&pc==0,"unshifted up keeps single-line navigation");
+  core_keydown_command("SST",false,&queued,&repeat); core_keyup();
+  check(current_prgm==f.main_program&&pc==f.sto_first,"named SST keeps single-line navigation");
+  set_menu(MENULEVEL_PLAIN,MENU_BLANK);
+  pc=0; shifted_arrow(KEY_DOWN);
+  check(current_prgm==f.main_program&&pc==f.sto_first,"visible menu prevents shifted program movement");
+  set_menu(MENULEVEL_PLAIN,MENU_NONE);
+
+  // The existing input lifecycle commits an edited number before changing programs.
+  size_t command_count=program_commands().size();
+  pc=f.sto_first; press(KEY_1);
+  assert(mode_number_entry);
+  int entered_pc=pc;
+  shifted_arrow(KEY_DOWN);
+  check(!mode_number_entry&&current_prgm==f.target_program&&pc==-1,
+      "shifted program movement commits pending number entry");
+  current_prgm=f.main_program;
+  int command; arg_struct argument={}; int4 cursor=entered_pc;
+  get_next_command(&cursor,&command,&argument,0,NULL);
+  check(program_commands().size()==command_count+1&&command==CMD_NUMBER&&argument.val_d==1,
+      "navigation stores the pending number exactly once");
+
+  // An empty program remains a valid destination, and one-program lists still wrap.
+  goto_dot_dot(true); int empty=current_prgm;
+  shifted_arrow(KEY_UP);
+  check(current_prgm==empty-1&&pc==-1,"shift-up leaves an empty program");
+  shifted_arrow(KEY_DOWN);
+  check(current_prgm==empty&&pc==-1,"shift-down selects an empty program's 00 line");
+  hard_reset(0); flags.f.prgm_mode=true; beeps=beep_calls;
+  for(int key : {KEY_UP,KEY_DOWN}) {
+    notices=shell_messages.size();
+    shifted_arrow(key);
+    check(current_prgm==0&&pc==-1&&shell_messages.size()==notices+1
+        &&shell_messages.back()==(key==KEY_UP?"Back to Last":"Back to First")&&beep_calls==beeps,
+        "a single-program list wraps with a modal notice and no sound");
+  }
+}
 static void follow() { bool queued=true; int repeat=77; core_program_follow(&queued,&repeat); assert(!queued&&repeat==0); core_keyup(); }
 static void begin_find(bool reverse = false) { bool queued=true; int repeat=77; core_program_find(reverse,&queued,&repeat); assert(!queued&&repeat==0); core_keyup(); }
 static void again() { bool queued=true; int repeat=77; core_repeat_last_command(&queued,&repeat); assert(!queued&&repeat==0); core_keyup(); }
@@ -554,6 +638,7 @@ int main() {
   setbuf(stdout, NULL);
   core_init(0, 0, NULL, 0);
   test_label_jump();
+  test_program_step();
   test_follow_and_find();
   test_reverse_find();
   test_find_again();

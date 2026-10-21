@@ -10,6 +10,7 @@
 #include "core_display.h"
 #include "core_helpers.h"
 #include "core_history_custom.h"
+#include "shell.h"
 
 extern int no_menu_key_this_time;
 
@@ -159,6 +160,19 @@ static void search_and_remember(bool reverse, int command, const char *query = N
 }
 
 } // namespace
+
+void custom_program_step(bool reverse) {
+    const bool wrapped = reverse ? current_prgm == 0 : current_prgm == prgms_count - 1;
+    current_prgm = wrapped ? (reverse ? prgms_count - 1 : 0)
+                           : current_prgm + (reverse ? -1 : 1);
+    pc = -1;
+    prgm_highlight_row = 0;
+    if (wrapped) {
+        shell_message(reverse ? "Back to Last" : "Back to First");
+        // The modal consumed a dismissal key; do not resume the original key's repeat.
+        repeating = 0;
+    }
+}
 
 bool core_program_label_jump(bool *enqueued, int *repeat) {
     custom_history_scope history;

@@ -40,7 +40,8 @@ void shell_get_time_date(uint4 *t, uint4 *d, int *w) {
   *d = 20261021;
   *w = 0;
 }
-void shell_message(const char *) {}
+static std::vector<std::string> shell_messages;
+void shell_message(const char *message) { shell_messages.emplace_back(message); }
 void shell_log(const char *) {}
 
 static int checks;
