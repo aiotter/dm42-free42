@@ -334,12 +334,34 @@ struct history_lane {
     int undo_count, redo_count;
     bool unsupported;
 };
-struct repeated_command {
+struct repeat_command_payload {
     int command;
     arg_struct arg;
     char *text;
     char *number;
-    repeated_command() : command(CMD_NONE), text(NULL), number(NULL) {}
+    repeat_command_payload(int command, const arg_struct &arg, char *text, char *number)
+        : command(command), arg(arg), text(text), number(number) {}
+    ~repeat_command_payload() { free(text); free(number); }
+    repeat_command_payload(const repeat_command_payload &) = delete;
+    repeat_command_payload &operator=(const repeat_command_payload &) = delete;
+};
+
+enum class repeat_kind { none, command, action };
+typedef bool (*repeat_action)(bool *enqueued, int *repeat);
+
+struct repeated_command {
+    repeat_kind kind;
+    union storage {
+        repeat_command_payload command;
+        repeat_action action;
+        // Construct and destroy command explicitly because it contains a nontrivial phloat object.
+        storage() {}
+        ~storage() {}
+    } data;
+    repeated_command() : kind(repeat_kind::none), data() {}
+    ~repeated_command();
+    repeated_command(const repeated_command &) = delete;
+    repeated_command &operator=(const repeated_command &) = delete;
 };
 
 struct history_context {
@@ -468,27 +490,42 @@ static history_snapshot *capture_command(int consumed) {
 
 
 static void clear_repeat(repeated_command &r) {
-    free(r.text); free(r.number);
-    r.text = r.number = NULL;
-    r.command = CMD_NONE;
+    if (r.kind == repeat_kind::command)
+        r.data.command.~repeat_command_payload();
+    r.kind = repeat_kind::none;
 }
 
+repeated_command::~repeated_command() { clear_repeat(*this); }
+
 static bool save_repeat(repeated_command &r, int command, const arg_struct *arg, const char *number) {
-    arg_struct normalized;
-    if (arg != NULL && arg->type == ARGTYPE_LBLINDEX) {
-        if (arg->val.num < 0 || arg->val.num >= labels_count) return false;
-        normalized = *arg;
+    // Prepare an independent argument before replacing the old union member.
+    // CMD_NUMBER retains val_d even when storage changes its argument type to an integer.
+    arg_struct normalized = {};
+    normalized.type = arg == NULL ? ARGTYPE_NONE : arg->type;
+    normalized.target = -1;
+    normalized.val_d = 0;
+    if (arg != NULL) {
+        if (arg->type == ARGTYPE_DOUBLE || command == CMD_NUMBER)
+            normalized.val_d = arg->val_d;
+        if (arg->type != ARGTYPE_DOUBLE && arg->type != ARGTYPE_NONE)
+            normalized.val = arg->val;
+        if (arg->type == ARGTYPE_STR || arg->type == ARGTYPE_IND_STR || arg->type == ARGTYPE_XSTR)
+            normalized.length = arg->length;
+    }
+    if (normalized.type == ARGTYPE_LBLINDEX) {
+        if (normalized.val.num < 0 || normalized.val.num >= labels_count) return false;
+        int label = normalized.val.num;
         normalized.type = ARGTYPE_STR;
-        normalized.length = labels[arg->val.num].length;
-        memcpy(normalized.val.text, labels[arg->val.num].name, normalized.length);
-        arg = &normalized;
+        normalized.length = labels[label].length;
+        memcpy(normalized.val.text, labels[label].name, normalized.length);
     }
     char *text = NULL, *digits = NULL;
-    if (arg != NULL && arg->type == ARGTYPE_XSTR) {
-        text = (char *) history_memory::allocate(arg->length + 1);
+    if (normalized.type == ARGTYPE_XSTR) {
+        text = (char *) history_memory::allocate(normalized.length + 1);
         if (text == NULL) return false;
-        memcpy(text, arg->val.xstr, arg->length);
-        text[arg->length] = 0;
+        memcpy(text, normalized.val.xstr, normalized.length);
+        text[normalized.length] = 0;
+        normalized.val.xstr = text;
     }
     if (number != NULL) {
         digits = (char *) history_memory::allocate(strlen(number) + 1);
@@ -496,13 +533,8 @@ static bool save_repeat(repeated_command &r, int command, const arg_struct *arg,
         strcpy(digits, number);
     }
     clear_repeat(r);
-    r.command = command;
-    if (arg != NULL) r.arg = *arg;
-    else { r.arg.type = ARGTYPE_NONE; r.arg.length = 0; }
-    r.arg.target = -1;
-    r.text = text;
-    r.number = digits;
-    if (text != NULL) r.arg.val.xstr = text;
+    new (&r.data.command) repeat_command_payload(command, normalized, text, digits);
+    r.kind = repeat_kind::command;
     return true;
 }
 
@@ -707,7 +739,6 @@ void custom_history_reset() {
     free_snapshot(history->before); history->before = NULL;
     history->scope_depth = 0;
     history->suppressed = false;
-    clear_repeat(history->last_command[0]); clear_repeat(history->last_command[1]); clear_repeat(history->inflight);
     history->~history_context();
     free(history); history = NULL;
 }
@@ -789,6 +820,16 @@ void custom_history_program_command(int command, const arg_struct *arg, const ch
         clear_repeat(history->last_command[1]);
 }
 
+void custom_history_program_action(bool (*action)(bool *enqueued, int *repeat)) {
+    if (loading_state || !flags.f.prgm_mode || !ensure_history()) return;
+    repeated_command &record = history->last_command[1];
+    clear_repeat(record);
+    if (action != NULL) {
+        record.data.action = action;
+        record.kind = repeat_kind::action;
+    }
+}
+
 extern "C" bool core_undo(bool *enqueued, int *repeat) {
     custom_history_scope scope;
     return move_history(false, enqueued, repeat);
@@ -807,6 +848,10 @@ extern "C" bool core_repeat_last_command(bool *enqueued, int *repeat) {
         history_error(ERR_INVALID_CONTEXT); return false;
     }
     const bool program = flags.f.prgm_mode;
+    repeated_command &record = history->last_command[program ? 1 : 0];
+    // Editor navigation can repeat in locked programs and must not commit pending numbers.
+    if (record.kind == repeat_kind::action)
+        return record.data.action(enqueued, repeat);
     if (program && prgms[current_prgm].locked) { history_error(ERR_PROGRAM_LOCKED); return false; }
     if (program && mode_number_entry) {
         arg_struct number;
@@ -820,27 +865,28 @@ extern "C" bool core_repeat_last_command(bool *enqueued, int *repeat) {
         prgm_highlight_row = 1;
         pending_command = CMD_NONE;
     }
-    repeated_command &record = history->last_command[program ? 1 : 0];
-    if (record.command == CMD_NONE) { history_error(ERR_NONEXISTENT); return false; }
-    if (!save_repeat(history->inflight, record.command, &record.arg, record.number)) {
+    if (record.kind != repeat_kind::command) { history_error(ERR_NONEXISTENT); return false; }
+    const repeat_command_payload &saved = record.data.command;
+    if (!save_repeat(history->inflight, saved.command, &saved.arg, saved.number)) {
         history_error(ERR_INSUFFICIENT_MEMORY); return false;
     }
+    repeat_command_payload &inflight = history->inflight.data.command;
     if (program) {
         int4 insertion = pc < 0 ? 0 : pc;
         if (pc >= 0 && !prgms[current_prgm].is_end(pc)) insertion += get_command_length(current_prgm, pc);
-        if (!store_command(insertion, history->inflight.command, &history->inflight.arg, history->inflight.number)) {
+        if (!store_command(insertion, inflight.command, &inflight.arg, inflight.number)) {
             history_error(ERR_INSUFFICIENT_MEMORY); return false;
         }
-        pc = history->inflight.command == CMD_END ? 0 : insertion;
+        pc = inflight.command == CMD_END ? 0 : insertion;
         prgm_highlight_row = 1;
         pending_command = CMD_NONE;
         redisplay();
         return false;
     }
-    bool running = core_keydown_command_id(history->inflight.command, enqueued, repeat);
+    bool running = core_keydown_command_id(inflight.command, enqueued, repeat);
     if (mode_command_entry && !*enqueued) {
-        pending_command = history->inflight.command;
-        pending_command_arg = history->inflight.arg;
+        pending_command = inflight.command;
+        pending_command_arg = inflight.arg;
         finish_command_entry(true);
     }
     return running;

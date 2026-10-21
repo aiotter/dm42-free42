@@ -12,6 +12,8 @@ int custom_history_execute(int command, arg_struct *arg,
         int (*handler)(int command, arg_struct *arg));
 void custom_history_command(int command, const arg_struct *arg);
 void custom_history_program_command(int command, const arg_struct *arg, const char *number);
+// Register a completed editor action for AGAIN without exposing its private input state.
+void custom_history_program_action(bool (*action)(bool *enqueued, int *repeat));
 
 class custom_history_scope {
 public:

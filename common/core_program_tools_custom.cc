@@ -19,6 +19,14 @@ enum find_input_mode { FIND_INACTIVE, FIND_COMMAND, FIND_TEXT };
 static find_input_mode find_input = FIND_INACTIVE;
 static bool find_reverse = false;
 
+struct find_query {
+    bool reverse;
+    int command;
+    int length;
+    char text[22];
+};
+static find_query last_find;
+
 static const char *find_prompt() {
     // Free42's character set encodes ↑ as 0x5e and ↓ as 0x0e.
     return find_reverse ? "FIND^" : "FIND\016";
@@ -124,6 +132,30 @@ static void find_match(bool reverse, int command, const char *query = NULL, int 
         move_editor(current_prgm, match);
     else
         find_not_found();
+}
+
+static bool repeat_find(bool *enqueued, int *repeat) {
+    // AGAIN must leave an unconfirmed FIND query open instead of cancelling it.
+    if (find_input != FIND_INACTIVE) {
+        *enqueued = false;
+        *repeat = 0;
+        squeak();
+        return false;
+    }
+    if (editor_action_ready(enqueued, repeat))
+        find_match(last_find.reverse, last_find.command,
+            last_find.length > 0 ? last_find.text : NULL, last_find.length);
+    return false;
+}
+
+static void search_and_remember(bool reverse, int command, const char *query = NULL, int length = 0) {
+    last_find.reverse = reverse;
+    last_find.command = command;
+    last_find.length = length;
+    if (length > 0)
+        memcpy(last_find.text, query, length);
+    custom_history_program_action(repeat_find);
+    find_match(reverse, command, query, length);
 }
 
 } // namespace
@@ -245,7 +277,7 @@ bool custom_program_find_command(int command) {
     if (command == CMD_RUN)
         command = CMD_STOP;
     if (command >= 0 && command < CMD_SENTINEL)
-        find_match(reverse, command);
+        search_and_remember(reverse, command);
     else
         redisplay();
     return true;
@@ -262,7 +294,7 @@ bool custom_program_find_finish_entry() {
         memcpy(query, incomplete_str, length);
     finish_find_input();
     if (length > 0)
-        find_match(reverse, CMD_NONE, query, length);
+        search_and_remember(reverse, CMD_NONE, query, length);
     else
         redisplay();
     return true;
