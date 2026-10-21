@@ -36,6 +36,7 @@
 #include "shell.h"
 #include "shell_spool.h"
 #include "core_base_custom.h"
+#include "core_history_custom.h"
 
 #ifndef BCD_MATH
 // We need these locally for BID128->double conversion
@@ -88,6 +89,7 @@ void core_init(int read_saved_state, int4 version, const char *state_file_name, 
      */
 
     phloat_init();
+    custom_history_reset();
 
 #ifndef ARM
     char *state_file_name_crash = NULL;
@@ -196,6 +198,7 @@ void core_cleanup() {
     if (!initialized)
         return;
 
+    custom_history_reset();
     initialized = false;
     for (int i = 0; i <= sp; i++)
         free_vartype(stack[i]);
@@ -312,7 +315,17 @@ bool core_keydown_command(const char *name, bool is_text, bool *enqueued, int *r
     }
 }
 
+bool core_keydown_command_id(int command, bool *enqueued, int *repeat) {
+    if (command < 0 || command >= CMD_SENTINEL) {
+        set_shift(false);
+        squeak();
+        return core_keydown_2(0, enqueued, repeat);
+    }
+    return core_keydown_2(command + 2048, enqueued, repeat);
+}
+
 static bool core_keydown_2(int key, bool *enqueued, int *repeat) {
+    custom_history_scope history;
 
     *enqueued = 0;
     *repeat = 0;
@@ -520,6 +533,7 @@ int dequeue_key() {
 }
 
 int core_repeat() {
+    custom_history_scope history;
     if (!initialized || quitting)
         return 0;
 
@@ -614,6 +628,7 @@ bool core_timeout3(bool repaint) {
 }
 
 bool core_keyup() {
+    custom_history_scope history;
     if (!initialized || quitting)
         return false;
 
@@ -665,6 +680,7 @@ bool core_keyup() {
         return mode_running || keybuf_head != keybuf_tail;
     }
 
+    custom_history_command(pending_command, &pending_command_arg);
     mode_varmenu = pending_command == CMD_VMSTO
                     || pending_command == CMD_VMSTO2
                     || pending_command == CMD_VMSOLVE
@@ -771,6 +787,8 @@ bool core_keyup() {
 }
 
 bool core_powercycle() {
+    // Power-on processing can inject a value without executing a command.
+    custom_history_barrier();
     bool need_redisplay = false;
 
     if (mode_interruptible != NULL)
@@ -2377,6 +2395,7 @@ static void decode_string(unsigned char *buf, int *cmd, arg_struct *arg, char **
 }
 
 void core_import_programs(int num_progs, const char *raw_file_name) {
+    custom_history_reset();
     int byte1, byte2, suffix;
     int cmd, flag, str_len = 0;
     int done_flag = 0;
@@ -4888,6 +4907,8 @@ void core_paste(const char *buf) {
             }
         }
         parse_success:
+        // Pasted values bypass the command dispatcher and end calculation history.
+        custom_history_barrier();
         if (recall_result(v) != ERR_NONE) {
             display_error(ERR_INSUFFICIENT_MEMORY);
             redisplay();
@@ -4923,6 +4944,8 @@ void set_alpha_entry(bool state) {
 }
 
 void set_running(bool state) {
+    if (state)
+        custom_history_barrier();
     if (mode_running != state) {
         mode_running = state;
         set_annunciators(-1, -1, -1, state, -1, -1);

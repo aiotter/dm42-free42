@@ -32,6 +32,7 @@
 
 // CUSTOM
 #include "core_base_custom.h"
+#include "core_history_custom.h"
 
 int no_menu_key_this_time = 0;
 
@@ -2197,6 +2198,9 @@ void keydown_normal_mode(int shift, int key) {
     if (is_number_key(shift, key, &invalid)) {
         if (invalid)
             return;
+        // Typed numbers change the stack outside the command execution path.
+        if (!flags.f.prgm_mode)
+            custom_history_barrier();
         /* Entering number entry mode */
         if (deferred_print)
             print_command(CMD_NULL, NULL);

@@ -11,15 +11,17 @@ SUITES ?= $(basename $(notdir $(wildcard $(ROOT)/tests/*_test.cc)))
 TEST_CPPFLAGS := -DBCD_MATH -DDECIMAL_CALL_BY_REFERENCE=1 \
   -DDECIMAL_GLOBAL_ROUNDING=1 -DDECIMAL_GLOBAL_ROUNDING_ACCESS_FUNCTIONS=1 \
   -DDECIMAL_GLOBAL_EXCEPTION_FLAGS=1 -DDECIMAL_GLOBAL_EXCEPTION_FLAGS_ACCESS_FUNCTIONS=1 \
-  -D_WCHAR_T_DEFINED -I$(ROOT)/common -I$(ROOT)/tests -I$(DECIMAL_INCLUDE)
+  -D_WCHAR_T_DEFINED -DFREE42_HISTORY_TEST -I$(ROOT)/common -I$(ROOT)/tests -I$(DECIMAL_INCLUDE)
 TEST_CXXFLAGS := -std=c++11 -O1 -g -UNDEBUG
 ifeq ($(SANITIZE),1)
 TEST_CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer
 endif
 ASAN_OPTIONS ?= halt_on_error=1:abort_on_error=1:detect_stack_use_after_return=1
 
-CORE_SOURCES := $(wildcard $(ROOT)/common/core_*.cc) $(ROOT)/common/shell_spool.cc
+CORE_SOURCES := $(filter-out $(ROOT)/common/core_history_custom.cc,$(wildcard $(ROOT)/common/core_*.cc)) $(ROOT)/common/shell_spool.cc
 CORE_OBJECTS := $(addprefix $(BUILD_DIR)/,$(notdir $(CORE_SOURCES:.cc=.o)))
+TEST_SUPPORT_OBJECTS := $(BUILD_DIR)/core_history_test_support.o
+TEST_OBJECTS := $(CORE_OBJECTS) $(TEST_SUPPORT_OBJECTS)
 TEST_BINARIES := $(addprefix $(BUILD_DIR)/,$(SUITES))
 CHECK_TARGETS := $(addprefix check-,$(SUITES))
 
@@ -30,11 +32,14 @@ all: $(TEST_BINARIES)
 $(BUILD_DIR):
 	mkdir -p "$@"
 
+$(BUILD_DIR)/core_history_test_support.o: $(ROOT)/tests/core_history_test_support.cc $(ROOT)/tests/history_test_boundary.h $(ROOT)/tests/Makefile | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(TEST_CPPFLAGS) $(CXXFLAGS) $(TEST_CXXFLAGS) -MMD -MP -c "$<" -o "$@"
+
 $(BUILD_DIR)/%.o: $(ROOT)/common/%.cc $(ROOT)/tests/Makefile | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(TEST_CPPFLAGS) $(CXXFLAGS) $(TEST_CXXFLAGS) -MMD -MP -c "$<" -o "$@"
 
-$(BUILD_DIR)/%: $(ROOT)/tests/%.cc $(CORE_OBJECTS)
-	$(CXX) $(CPPFLAGS) $(TEST_CPPFLAGS) $(CXXFLAGS) $(TEST_CXXFLAGS) "$<" $(CORE_OBJECTS) $(LDFLAGS) "$(DECIMAL_LIBRARY)" -o "$@"
+$(BUILD_DIR)/%: $(ROOT)/tests/%.cc $(TEST_OBJECTS) $(ROOT)/tests/core_test_support.h $(ROOT)/tests/history_test_boundary.h
+	$(CXX) $(CPPFLAGS) $(TEST_CPPFLAGS) $(CXXFLAGS) $(TEST_CXXFLAGS) "$<" $(TEST_OBJECTS) $(LDFLAGS) "$(DECIMAL_LIBRARY)" -o "$@"
 
 check: $(CHECK_TARGETS)
 
@@ -43,6 +48,6 @@ $(CHECK_TARGETS): check-%: $(BUILD_DIR)/%
 	@cd "$(BUILD_DIR)" && ASAN_OPTIONS="$(ASAN_OPTIONS)" "./$*"
 
 clean:
-	rm -f $(CORE_OBJECTS) $(CORE_OBJECTS:.o=.d) $(TEST_BINARIES)
+	rm -f $(TEST_OBJECTS) $(TEST_OBJECTS:.o=.d) $(TEST_BINARIES)
 
--include $(CORE_OBJECTS:.o=.d)
+-include $(TEST_OBJECTS:.o=.d)

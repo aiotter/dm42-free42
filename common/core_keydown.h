@@ -21,6 +21,8 @@
 #include "free42.h"
 
 void keydown(int shift, int key);
+// Internal tools use command IDs to enter commands hidden from name lookup.
+bool core_keydown_command_id(int command, bool *enqueued, int *repeat);
 void keydown_number_entry(int shift, int key);
 void keydown_command_entry(int shift, int key);
 void keydown_alpha_mode(int shift, int key);
