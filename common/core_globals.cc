@@ -40,6 +40,7 @@
 // CUSTOM
 #include "core_base_custom.h"
 #include "core_history_custom.h"
+#include "core_program_tools_custom.h"
 
 // File used for reading and writing the state file, and for importing and
 // exporting programs. Since only one of these operations can be active at one
@@ -2525,6 +2526,7 @@ bool store_command(int4 pc, int command, arg_struct *arg, const char *num_str) {
 }
 
 void store_command_after(int4 *pc, int command, arg_struct *arg, const char *num_str) {
+    if (custom_program_find_command(command)) return;
     int4 oldpc = *pc;
     if (*pc == -1)
         *pc = 0;
@@ -4175,6 +4177,7 @@ void save_state(bool *success) {
 // 2 = State File Too New
 void hard_reset(int reason) {
     custom_history_reset();
+    custom_program_tools_reset();
     vartype *regs;
 
     /* Clear stack */
