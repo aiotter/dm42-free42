@@ -18,6 +18,7 @@
 #include <stdlib.h>
 
 #include "core_tables.h"
+#include "core_history_custom.h"
 #include "core_commands1.h"
 #include "core_commands2.h"
 #include "core_commands3.h"
@@ -930,7 +931,7 @@ XROM         A[0-7] nn (bits 2-0 of byte 1 plus bits 7-6 of byte 2 are the ROM
 ===============================================================================
 */
 
-int handle(int cmd, arg_struct *arg) {
+static int handle_checked(int cmd, arg_struct *arg) {
     const command_spec *cs = cmd_array + cmd;
     if (flags.f.big_stack) {
         if (cs->argcount == -1) {
@@ -956,4 +957,8 @@ int handle(int cmd, arg_struct *arg) {
         }
     }
     return cs->handler(arg);
+}
+
+int handle(int cmd, arg_struct *arg) {
+    return custom_history_execute(cmd, arg, handle_checked);
 }

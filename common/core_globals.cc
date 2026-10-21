@@ -39,6 +39,7 @@
 
 // CUSTOM
 #include "core_base_custom.h"
+#include "core_history_custom.h"
 
 // File used for reading and writing the state file, and for importing and
 // exporting programs. Since only one of these operations can be active at one
@@ -2408,6 +2409,7 @@ bool store_command(int4 pc, int command, arg_struct *arg, const char *num_str) {
         invalidate_lclbls(current_prgm - 1, true);
         clear_all_rtns();
         draw_varmenu();
+        custom_history_program_command(command, arg, num_str);
         return true;
     }
 
@@ -2518,6 +2520,7 @@ bool store_command(int4 pc, int command, arg_struct *arg, const char *num_str) {
     clear_all_rtns();
     if (!loading_state)
         draw_varmenu();
+    custom_history_program_command(command, arg, num_str);
     return true;
 }
 
@@ -4171,6 +4174,7 @@ void save_state(bool *success) {
 // 1 = State File Corrupt
 // 2 = State File Too New
 void hard_reset(int reason) {
+    custom_history_reset();
     vartype *regs;
 
     /* Clear stack */

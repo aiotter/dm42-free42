@@ -1,6 +1,7 @@
 #include "core_home_menu_custom.h"
 
 #include "core_globals.h"
+#include "core_history_custom.h"
 #include "core_keydown.h"
 #include "core_tables.h"
 
@@ -26,8 +27,8 @@ constexpr home_slot normal_home[CORE_HOME_KEY_COUNT] = {
     { bind("nCr", run_command<CMD_COMB>), bind("nPr", run_command<CMD_PERM>) },
     {},
     {},
-    {},
-    {},
+    { bind("AGAIN", core_repeat_last_command), {} },
+    { bind("UNDO", core_undo), bind("REDO", core_redo) }
 };
 
 constexpr home_slot program_home[CORE_HOME_KEY_COUNT] = {
@@ -35,8 +36,8 @@ constexpr home_slot program_home[CORE_HOME_KEY_COUNT] = {
     {},
     {},
     {},
-    {},
-    {},
+    { bind("AGAIN", core_repeat_last_command), {} },
+    { bind("UNDO", core_undo), bind("REDO", core_redo) }
 };
 
 } // namespace
