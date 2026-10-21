@@ -540,7 +540,9 @@ int core_repeat() {
     if (!initialized || quitting)
         return 0;
 
+    custom_program_key_repeat_active = true;
     keydown(repeating_shift, repeating_key);
+    custom_program_key_repeat_active = false;
     int rpt = repeating;
     repeating = 0;
     return rpt;

@@ -366,7 +366,9 @@ void keydown(int shift, int key) {
         if (flags.f.prgm_mode && mode_alpha_entry)
             finish_alpha_prgm_line();
         clear_all_rtns();
-        if (key == KEY_UP)
+        if (shift && get_front_menu() == MENU_NONE)
+            custom_program_step(key == KEY_UP);
+        else if (key == KEY_UP)
             bst();
         else
             sst();

@@ -22,6 +22,13 @@ bool core_program_follow(bool *enqueued, int *repeat);
 bool core_program_find_upward(bool *enqueued, int *repeat);
 bool core_program_find_downward(bool *enqueued, int *repeat);
 
+// The core sets this only while dispatching a key from core_repeat().
+extern bool custom_program_key_repeat_active;
+
+// Move to the adjacent program's 00 line.
+// Call only after committing any pending program input.
+void custom_program_step(bool reverse);
+
 // The input hooks consume FIND queries before native handlers can edit a program.
 bool custom_program_find_keydown(int shift, int key);
 bool custom_program_find_command(int command);
