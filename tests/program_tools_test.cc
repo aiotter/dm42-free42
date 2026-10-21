@@ -152,6 +152,7 @@ static void begin_find_downward() {
   core_keyup();
 }
 
+static void again() { bool queued=true; int repeat=77; core_repeat_last_command(&queued,&repeat); assert(!queued&&repeat==0); core_keyup(); }
 static void enter_command_query(const char *command) {
   bool queued;
   int repeat;
@@ -421,12 +422,203 @@ static void test_reverse_find() {
       "reverse FIND cannot take over unfinished number entry");
 }
 
+static void test_find_again() {
+  // Three matches distinguish the two directions when AGAIN advances and wraps.
+  const struct {
+    void (*query_command)(const char *);
+    void (*query_text)(const char *);
+    bool upward;
+  } directions[] = {
+    {query_command_downward, query_text_downward, false},
+    {query_command_upward, query_text_upward, true},
+  };
+  for (const auto &direction : directions) {
+    const bool upward = direction.upward;
+    fixture f=setup(); pc=f.number;
+    int third=append(CMD_STO,numeric(7)); pc=f.sto_first;
+    auto bytes=programs();
+    direction.query_command("STO");
+    check(pc==(upward ? third : f.sto_second),"command FIND records its selected direction");
+    again();
+    check(pc==(upward ? f.sto_second : third)&&!core_menu(),
+        "AGAIN finds the next command match without reopening the prompt");
+    again();
+    check(pc==f.sto_first&&programs()==bytes,"AGAIN wraps in the saved command-search direction without editing");
+    bool queued; int repeat;
+    core_undo(&queued,&repeat); core_keyup();
+    check(pc==(upward ? f.sto_second : third),"UNDO reverses one repeated FIND movement");
+    core_redo(&queued,&repeat); core_keyup();
+    check(pc==f.sto_first,"REDO restores one repeated FIND movement");
+    again();
+    check(pc==(upward ? third : f.sto_second)&&programs()==bytes,
+        "AGAIN retains the command query and direction across UNDO and REDO");
+
+    f=setup(); pc=f.number;
+    third=append(CMD_STRING,named("ABC LAST")); pc=f.sto_add; bytes=programs();
+    direction.query_text("ABC");
+    check(pc==(upward ? third : f.hello),"text FIND records its selected direction");
+    again();
+    check(pc==(upward ? f.hello : third),"AGAIN reuses the text substring and direction");
+    again();
+    check(pc==f.sto_add&&programs()==bytes,"repeated text FIND wraps without changing operands");
+  }
+
+  // New queries replace previous queries; cancelled or empty queries do not.
+  fixture f=setup(); pc=f.number;
+  int third=append(CMD_STO,numeric(7)); pc=f.sto_first;
+  query_command_upward("STO");
+  auto bytes=programs();
+  begin_find_downward(); press(KEY_EXIT); again();
+  check(pc==f.sto_second,"cancelling a new command query preserves the last FIND direction");
+  begin_find_downward(); press(KEY_SHIFT); press(KEY_ENTER);
+  bool queued; int repeat;
+  core_keydown_command("Z",true,&queued,&repeat); core_keyup(); press(KEY_EXIT); again();
+  check(pc==f.sto_first,"cancelled text input does not replace the saved command query");
+  query_text_downward(""); again();
+  check(pc==third,"an empty text query preserves the last completed FIND");
+  query_text_downward("ABC"); again();
+  check(pc==f.hello,"a completed text query replaces a saved command query");
+  query_command_downward("STO"); again();
+  check(pc==third&&programs()==bytes,"a completed command query replaces a saved text query");
+
+  // Query text is owned by FIND, not by the temporary ALPHA entry buffer.
+  f=setup(); query_text_downward("ABC"); bytes=programs();
+  begin_find_upward(); press(KEY_SHIFT); press(KEY_ENTER);
+  core_keydown_command("Z",true,&queued,&repeat); core_keyup(); press(KEY_EXIT); again();
+  check(pc==f.hello&&programs()==bytes,"later cancelled text entry cannot overwrite the saved search text");
+  query_command_downward("SIN"); int before=pc; again();
+  check(pc==before&&flags.f.message&&programs()==bytes,
+      "AGAIN repeats an unmatched FIND instead of inserting the queried instruction");
+
+  // Read-only FIND can repeat in locked programs, but it cannot consume pending input.
+  f = setup();
+  query_command_downward("STO");
+  prgms[f.main_program].locked = true;
+  bytes = programs();
+  again();
+  check(pc==f.sto_first&&programs()==bytes,"AGAIN repeats FIND in a locked program without editing");
+  prgms[f.main_program].locked=false;
+  begin_find_upward(); before=pc; again();
+  check(pc==before&&get_front_menu()==MENU_BLANK&&programs()==bytes,
+      "AGAIN leaves an unconfirmed command query open");
+  press(KEY_EXIT); again();
+  check(pc==f.sto_second,"the saved FIND remains available after cancelling unconfirmed input");
+  begin_find_upward(); press(KEY_SHIFT); press(KEY_ENTER); before=pc; again();
+  check(pc==before&&mode_command_entry&&programs()==bytes,
+      "AGAIN leaves an unconfirmed text query open");
+  press(KEY_EXIT);
+  press(KEY_1); before=pc; bytes=programs(); again();
+  check(pc==before&&mode_number_entry&&programs()==bytes,
+      "repeating FIND cannot commit unfinished number entry");
+
+  // Ordinary instruction input replaces FIND as the last program action.
+  f=setup(); query_command_downward("STO");
+  core_keydown_command("SIN",false,&queued,&repeat); core_keyup();
+  size_t count=program_commands().size(); again();
+  int command; arg_struct arg={}; int4 position=pc;
+  get_next_command(&position,&command,&arg,0,NULL);
+  check(command==CMD_SIN&&program_commands().size()==count+1,
+      "AGAIN inserts the last instruction after an edit replaces FIND");
+  prgms[f.main_program].locked=true; bytes=programs(); before=pc; again();
+  check(pc==before&&flags.f.message&&programs()==bytes,
+      "ordinary instruction repetition still rejects locked programs");
+  prgms[f.main_program].locked=false;
+
+  // Normal calculations and editor searches retain independent repeat records.
+  f=setup(); pc=f.number; third=append(CMD_STO,numeric(7)); pc=f.sto_first;
+  query_command_downward("STO"); flags.f.prgm_mode=false;
+  ((vartype_real *)stack[sp])->x=2;
+  core_keydown_command("CHS",false,&queued,&repeat); core_keyup(); again();
+  check(((vartype_real *)stack[sp])->x==2,"normal-mode AGAIN repeats a calculation instead of the saved FIND");
+  flags.f.prgm_mode=true; bytes=programs(); again();
+  check(pc==third&&programs()==bytes,"normal-mode calculations preserve program-mode FIND repetition");
+
+  // Resetting from normal mode clears both lanes, including the saved editor search.
+  flags.f.prgm_mode=false; hard_reset(0); flags.f.prgm_mode=true; pc=-1; bytes=programs(); again();
+  check(pc==-1&&flags.f.message&&programs()==bytes,"reset clears FIND from AGAIN history");
+}
+
+static void test_again_record_transitions() {
+  auto instruction = [](int position) -> std::vector<unsigned char> {
+    const unsigned char *start=prgms[current_prgm].text+position;
+    return std::vector<unsigned char>(start,start+get_command_length(current_prgm,position));
+  };
+
+  // A fresh repeat record can become a FIND action and can be cleared without reviving an old command.
+  fixture f=setup(); custom_history_reset(); query_command_downward("STO");
+  auto bytes=programs(); again();
+  check(pc==f.sto_first&&programs()==bytes,"an empty AGAIN record can become a FIND action");
+  custom_history_program_action(NULL); int before=pc; again();
+  check(pc==before&&flags.f.message&&programs()==bytes,"clearing an AGAIN action leaves an empty record");
+
+  // Owned strings and numeric source survive command/action transitions and inflight replacement.
+  f=setup(); pc=f.number;
+  char source[40]; memset(source,'A',sizeof(source));
+  arg_struct text={}; text.type=ARGTYPE_XSTR; text.length=sizeof(source); text.val.xstr=source;
+  int original=append(CMD_XSTR,text); auto expected=instruction(original);
+  memset(source,'B',sizeof(source)); again();
+  check(instruction(pc)==expected,"an owning command payload repeats its own long-string bytes");
+  query_text_downward("ABC"); bytes=programs(); again();
+  check(pc==f.hello&&programs()==bytes,"an owning command payload can be replaced by a FIND action");
+  pc=f.number;
+  char digits[]="1.2300";
+  arg_struct number={}; number.type=ARGTYPE_DOUBLE; number.val_d=phloat("1.23");
+  original=append(CMD_NUMBER,number,digits); expected=instruction(original);
+  memset(digits,'9',strlen(digits)); again();
+  check(instruction(pc)==expected,"a FIND action can become a command that owns its original numeric source");
+  int command; arg_struct argument={}; int4 position=pc;
+  get_next_command(&position,&command,&argument,0,NULL);
+  check(command==CMD_NUMBER&&argument.val_d==phloat("1.23"),
+      "the constructed numeric command payload preserves its phloat value");
+  custom_history_reset(); before=pc; bytes=programs(); again();
+  check(pc==before&&flags.f.message&&programs()==bytes,
+      "reset destroys owning last-command and inflight payloads without reviving them");
+
+  // Saving a new edit may fail, but it must clear the old action/command rather than leave a partial record.
+  for(bool was_action : {false,true}) for(bool numeric_input : {false,true}) {
+    f=setup(); pc=f.number;
+    append(CMD_XSTR,text); again();
+    if(was_action) query_command_downward("STO");
+    number.val_d=phloat("7.5");
+    int insertion=pc+get_command_length(current_prgm,pc);
+    journal_test_fail_after=1;
+    bool stored=store_command(insertion,numeric_input?CMD_NUMBER:CMD_XSTR,
+        numeric_input?&number:&text,numeric_input?"7.500":NULL);
+    bool injected=journal_test_fail_after==0; journal_test_fail_after=0;
+    check(stored&&injected,"the program edit succeeds when saving its AGAIN payload runs out of memory");
+    pc=insertion; bytes=programs(); again();
+    check(pc==insertion&&flags.f.message&&programs()==bytes,
+        "a failed command save leaves neither a stale FIND action nor an older owning command repeatable");
+    custom_history_reset();
+  }
+
+  // Failure while copying to inflight preserves the saved command and permits a later retry.
+  for(bool numeric_input : {false,true}) {
+    f=setup(); pc=f.number;
+    number.val_d=phloat("7.5");
+    append(numeric_input?CMD_XSTR:CMD_NUMBER,numeric_input?text:number,numeric_input?NULL:"7.500");
+    again();
+    original=append(numeric_input?CMD_NUMBER:CMD_XSTR,numeric_input?number:text,numeric_input?"7.500":NULL);
+    expected=instruction(original); bytes=programs(); before=pc;
+    // Establish the outer history scope before targeting the payload-copy allocation.
+    custom_history_begin(); journal_test_fail_after=1; again();
+    bool injected=journal_test_fail_after==0; journal_test_fail_after=0; custom_history_end();
+    check(injected&&pc==before&&flags.f.message&&programs()==bytes,
+        "failed inflight allocation leaves the program and saved command intact");
+    again();
+    check(instruction(pc)==expected,"AGAIN retries the intact saved command after inflight allocation failure");
+    custom_history_reset();
+  }
+}
+
 int main() {
   setbuf(stdout, NULL);
   core_init(0, 0, NULL, 0);
   test_label_jump();
   test_follow_and_find();
   test_reverse_find();
+  test_find_again();
+  test_again_record_transitions();
   core_cleanup();
   printf("%d program-tool checks passed\n", checks);
 }
