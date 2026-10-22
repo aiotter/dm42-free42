@@ -52,6 +52,7 @@ FREE42SRCS = keymap.cc \
 	core_helpers.cc core_keydown.cc core_linalg1.cc core_linalg2.cc \
 	core_math1.cc core_math2.cc core_phloat.cc core_sto_rcl.cc \
 	core_tables.cc core_variables.cc core_aux.cc
+FREE42SRCS += $(notdir $(wildcard ../common/*_custom.cc))
 
 SRCS = main_con.cc 
 

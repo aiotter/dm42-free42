@@ -73,6 +73,9 @@ CORE_OBJS = shell_spool.o core_main.o core_commands1.o core_commands2.o \
 	core_helpers.o core_keydown.o core_linalg1.o core_linalg2.o \
 	core_math1.o core_math2.o core_phloat.o core_sto_rcl.o \
 	core_tables.o core_variables.o
+CUSTOM_SRCS = $(notdir $(wildcard ../common/*_custom.cc))
+SRCS += $(CUSTOM_SRCS)
+CORE_OBJS += $(CUSTOM_SRCS:.cc=.o)
 OBJS = shell_main.o shell_skin.o skins.o keymap.o shell_loadimage.o \
 	$(CORE_OBJS)
 
