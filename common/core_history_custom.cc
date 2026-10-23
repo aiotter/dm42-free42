@@ -87,6 +87,12 @@
     X(CMD_MENU) \
     X(CMD_VIEW) \
     X(CMD_AVIEW) \
+    X(CMD_TIME_HM) \
+    X(CMD_TIME_HMS) \
+    X(CMD_TIME_HMSS) \
+    X(CMD_TIME_ROUND) \
+    X(CMD_TIME_TRUNC) \
+    X(CMD_TIME_CALC) \
     X(CMD_NULL) \
     X(CMD_SILENT_OFF) \
     X(CMD_SILENT_ON)

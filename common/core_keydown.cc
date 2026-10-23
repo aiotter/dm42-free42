@@ -34,6 +34,7 @@
 #include "core_base_custom.h"
 #include "core_program_tools_custom.h"
 #include "core_history_custom.h"
+#include "core_time_custom.h"
 
 int no_menu_key_this_time = 0;
 
@@ -307,6 +308,7 @@ void keydown(int shift, int key) {
 
     // CUSTOM: Handle alternate-base selection before a menu key can finish number entry.
     if (!no_menu_key_this_time && custom_base_keydown(shift, key)) return;
+    if (!no_menu_key_this_time && custom_time_keydown(shift, key)) return;
 
     if (mode_number_entry && get_base() == 16 && key == KEY_SIGMA
             && get_front_menu() == MENU_BASE1) {
@@ -687,11 +689,18 @@ void keydown_number_entry(int shift, int key) {
     if (flags.f.prgm_mode)
         entered_number = x;
     else {
+        if (base == 10)
+            custom_time_input(cmdline, cmdline_length, &x);
         free_vartype(stack[sp]);
         stack[sp] = new_real(x);
     }
 
     draw_number:
+
+    if (custom_time_draw_entry(cmdline_row)) {
+        flush_display();
+        return;
+    }
 
     bufptr = 0;
     if (flags.f.prgm_mode) {

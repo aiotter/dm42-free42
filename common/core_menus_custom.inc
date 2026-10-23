@@ -8,4 +8,11 @@
                         { 0x1000 + CMD_NULL,    0, "" },
                         { 0x1000 + CMD_NULL,    0, "" },
                         { 0x1000 + CMD_NULL,    0, "" },
-                        { 0x1000 + CMD_NULL,    0, "" } } }
+                        { 0x1000 + CMD_NULL,    0, "" } } },
+    { /* MENU_TIME */ MENU_NONE, MENU_NONE, MENU_NONE,
+                      { { 0x2000 + CMD_TIME_HM,    0, "" },
+                        { 0x2000 + CMD_TIME_HMS,   0, "" },
+                        { 0x2000 + CMD_TIME_HMSS,  0, "" },
+                        { 0x2000 + CMD_TIME_ROUND, 0, "" },
+                        { 0x2000 + CMD_TIME_TRUNC, 0, "" },
+                        { 0x1000 + CMD_TIME_DAY,   0, "" } } }

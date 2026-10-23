@@ -29,6 +29,9 @@
 #include "core_sto_rcl.h"
 #include "core_variables.h"
 
+// CUSTOM
+#include "core_time_custom.h"
+
 /********************************************************/
 /* Implementations of HP-42S built-in functions, part 5 */
 /********************************************************/
@@ -681,6 +684,9 @@ static int base_helper(int base) {
             return err;
         set_appmenu_exitcallback(2);
         baseapp = 1;
+    } else if (custom_time_active()) {
+        // Interactive radix selection closes TIME without opening the BASE menu.
+        set_menu(MENULEVEL_APP, MENU_NONE);
     }
     set_base(base);
     return ERR_NONE;

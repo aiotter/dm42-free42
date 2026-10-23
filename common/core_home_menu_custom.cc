@@ -26,7 +26,7 @@ bool run_command(bool *enqueued, int *repeat) {
 constexpr home_slot normal_home[CORE_HOME_KEY_COUNT] = {
     { bind("%", run_command<CMD_PERCENT>), bind("%CH", run_command<CMD_PERCENT_CH>) },
     { bind("nCr", run_command<CMD_COMB>), bind("nPr", run_command<CMD_PERM>) },
-    {},
+    { bind("TIME", run_command<CMD_TIME_CALC>), {} },
     {},
     { bind("AGAIN", core_repeat_last_command), {} },
     { bind("UNDO", core_undo), bind("REDO", core_redo) }

@@ -33,6 +33,7 @@
 #include "core_key_rename_custom.h"
 #include "core_base_custom.h"
 #include "core_program_tools_custom.h"
+#include "core_time_custom.h"
 
 /********************/
 /* HP-42S font data */
@@ -1291,14 +1292,18 @@ void xlabel2buf(char *buf, int buflen, int *bufptr) {
 }
 
 void display_x(int row) {
+    if (custom_time_draw_entry(row)) return;
     char buf[22];
     int bufptr = 0;
 
     clear_row(row);
     xlabel2buf(buf, 22, &bufptr);
     vartype *x = sp >= 0 ? stack[sp] : NULL;
-    if (x != NULL)
-        bufptr += vartype2string(x, buf + bufptr, 22 - bufptr);
+    if (x != NULL) {
+        int len = custom_time_format(x, buf + bufptr, 22 - bufptr);
+        if (len < 0) len = vartype2string(x, buf + bufptr, 22 - bufptr);
+        bufptr += len;
+    }
     draw_string(0, row, buf, bufptr);
 }
 
@@ -1312,7 +1317,8 @@ void display_y(int row) {
     else
         draw_string(0, row, "\201\200", 2);
     if (y != NULL) {
-        len = vartype2string(y, buf, 20);
+        len = custom_time_format(y, buf, 20);
+        if (len < 0) len = vartype2string(y, buf, 20);
         if (len > 20) {
             draw_string(2, row, buf, 19);
             draw_char(21, row, 26);
@@ -2458,6 +2464,7 @@ void redisplay() {
                 int display_name_len;
                 core_key_rename(scmd == CMD_NONE ? cmd_id : scmd, &display_name, &display_name_len);
                 custom_base_menu_item(menu_id, cmd_id, &display_name, &display_name_len, &is_flag);
+                custom_time_menu_item(cmd_id, &is_flag);
                 draw_key(i, is_flag, 1, display_name, display_name_len);
             }
         }

@@ -17,6 +17,12 @@ Firmware build and [flashing instructions](https://github.com/aiotter/DM42PGM.ni
 The home menu automatically shows calculation controls in normal mode and editing tools in program mode.
 The key assignments are defined in [core_home_menu_custom.cc](common/core_home_menu_custom.cc).
 
+### Normal mode
+
+- `TIME` (F3) opens time display and entry mode.
+  Use `H.M`, `H.MS`, or `H.MSs` to set precision and `RND` or `TRNC` to set display rounding.
+  During number entry, `1d` multiplies the entered duration by 24. Outside number entry, `1d` enters 24 hours.
+
 ### Program mode
 
 - `LBLs` (F1) lets you select a label and move the cursor to it.

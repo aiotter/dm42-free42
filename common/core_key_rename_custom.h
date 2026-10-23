@@ -14,6 +14,10 @@
 
 static inline void core_key_rename(int cmd_id, const char **name, int *name_len) {
     switch (cmd_id) {
+        case CMD_TIME_ROUND:
+            *name = "RND";
+            *name_len = 3;
+            return;
         case CMD_COMB:
             *name = "nCr";
             *name_len = 3;

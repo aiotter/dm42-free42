@@ -41,6 +41,7 @@
 #include "core_base_custom.h"
 #include "core_history_custom.h"
 #include "core_program_tools_custom.h"
+#include "core_time_custom.h"
 
 // File used for reading and writing the state file, and for importing and
 // exporting programs. Since only one of these operations can be active at one
@@ -4090,7 +4091,8 @@ void save_state(bool *success) {
     if (!write_char(mode_number_entry)) return;
     if (!write_bool(mode_alpha_entry)) return;
     if (!write_bool(mode_shift)) return;
-    if (!write_int(mode_appmenu)) return;
+    // Older cores cannot render the time menu. Its active state is stored by the shell.
+    if (!write_int(mode_appmenu == MENU_TIME ? MENU_NONE : mode_appmenu)) return;
     if (!write_int(mode_plainmenu)) return;
     if (!write_bool(mode_plainmenu_sticky)) return;
     if (!write_int(mode_transientmenu)) return;
@@ -4337,6 +4339,7 @@ void hard_reset(int reason) {
     mode_carry = false;
     mode_dec_int = false;
     custom_base_reset();
+    custom_time_reset();
     mode_bin_sep = false;
     mode_oct_sep = false;
     mode_dec_sep = false;

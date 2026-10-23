@@ -17,6 +17,7 @@
 
 // CUSTOM
 #include "core_base_custom.h"
+#include "core_time_custom.h"
 
 /*
 int prgmline2buf(char *buf, int len, int4 line, int highlight,
@@ -321,8 +322,10 @@ int reg2str(char *buf, int buflen, reg_id_t reg_id, int *base) {
       buf[len] = 26; // ellipsis
     }
     memcpy(buf, reg_alpha, len);
-  } else
-    len = custom_vartype2string(reg, buf, buflen, base);
+  } else {
+    len = custom_time_format(reg, buf, buflen - 1);
+    if (len < 0) len = custom_vartype2string(reg, buf, buflen, base);
+  }
   
   buf[len] = 0;
   return len;

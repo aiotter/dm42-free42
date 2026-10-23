@@ -15,4 +15,7 @@
 int docmd_to_inch(arg_struct *arg);
 int docmd_to_meter(arg_struct *arg);
 
+// Let TIME reuse the built-in HMS conversion.
+int mappable_to_hms(phloat x, phloat *y);
+
 #endif
