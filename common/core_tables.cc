@@ -29,6 +29,7 @@
 
 // CUSTOM
 #include "core_commands_custom.h"
+#include "core_time_custom.h"
 
 
 /* rttypes special cases */

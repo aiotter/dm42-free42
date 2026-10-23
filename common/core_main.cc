@@ -38,6 +38,7 @@
 #include "core_base_custom.h"
 #include "core_history_custom.h"
 #include "core_program_tools_custom.h"
+#include "core_time_custom.h"
 
 #ifndef BCD_MATH
 // We need these locally for BID128->double conversion
@@ -92,6 +93,7 @@ void core_init(int read_saved_state, int4 version, const char *state_file_name, 
     phloat_init();
     custom_history_reset();
     custom_program_tools_reset();
+    custom_time_reset();
 
 #ifndef ARM
     char *state_file_name_crash = NULL;

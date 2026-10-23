@@ -934,7 +934,7 @@ int docmd_to_hr(arg_struct *arg) {
     return err;
 }
 
-static int mappable_to_hms(phloat x, phloat *y) {
+int mappable_to_hms(phloat x, phloat *y) {
     int neg = x < 0;
     phloat r, t;
     if (neg)
