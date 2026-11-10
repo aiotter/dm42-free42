@@ -18,6 +18,8 @@ bool core_program_follow(bool *enqueued, int *repeat);
 bool core_program_insert_after(bool *enqueued, int *repeat);
 bool core_program_request_delete(bool *enqueued, int *repeat);
 
+void core_get_program_position(int *index, int *count);
+
 #ifdef __cplusplus
 }
 

@@ -264,6 +264,11 @@ static void search_and_remember(bool reverse, int command, const char *query = N
 
 } // namespace
 
+void core_get_program_position(int *index, int *count) {
+    *index = current_prgm;
+    *count = prgms_count;
+}
+
 bool custom_program_key_repeat_active = false;
 
 void custom_program_step(bool reverse) {
