@@ -1,6 +1,7 @@
 // Exercise editor actions through the real core and normal key-release lifecycle.
 #include "core_test_support.h"
 #include "core_program_tools_custom.h"
+#include <unistd.h>
 
 static void open_jump() {
   bool queued = true;
@@ -135,6 +136,183 @@ static std::vector<std::vector<unsigned char>> programs() {
   return bytes;
 }
 
+static void insert_program_after() {
+  bool queued = true;
+  int repeat = 77;
+  check(!core_program_insert_after(&queued, &repeat) && !queued && repeat == 0,
+      "program insertion consumes the key without starting execution or repeat");
+  core_keyup();
+}
+
+static void test_insert_program_after() {
+  fixture f = setup();
+  const auto original = programs();
+  flags.f.prgm_mode = false;
+  insert_program_after();
+  check(programs() == original, "program insertion is disabled in normal mode");
+  flags.f.prgm_mode = true;
+
+  insert_program_after();
+  const auto inserted = programs();
+  check(inserted.size() == original.size() + 1 && inserted.front() == original.front()
+      && inserted.back() == original.back(), "insertion keeps both surrounding programs intact");
+  check(current_prgm == f.main_program + 1 && pc == -1 && !prgms[current_prgm].locked
+      && program_commands() == std::vector<int>({CMD_END}),
+      "insertion selects line 00 of an empty, editable program");
+  arg_struct label = named("TARGET");
+  int target_program;
+  int4 target_pc;
+  check(find_global_label(&label, &target_program, &target_pc)
+      && target_program == f.target_program + 1 && target_pc == 0,
+      "insertion updates the indices of later labels");
+
+  bool queued;
+  int repeat;
+  core_undo(&queued, &repeat); core_keyup();
+  check(programs() == original && current_prgm == f.main_program && pc == f.sto_first,
+      "UNDO removes the new program and restores the original position");
+  core_redo(&queued, &repeat); core_keyup();
+  check(programs() == inserted && current_prgm == f.main_program + 1 && pc == -1,
+      "REDO restores the inserted program and position");
+
+  // REDO restores the program and label tables at exact capacity. Inserting
+  // after the locked last program then exercises growth of both tables.
+  current_prgm = prgms_count - 1;
+  prgms[current_prgm].locked = true;
+  insert_program_after();
+  check(current_prgm == f.target_program + 2 && pc == -1
+      && prgms[current_prgm - 1].locked && !prgms[current_prgm].locked
+      && program_commands() == std::vector<int>({CMD_END}),
+      "insertion after a locked last program appends an unlocked empty program");
+  press(KEY_ADD);
+  check(program_commands() == std::vector<int>({CMD_ADD, CMD_END}),
+      "the first instruction goes into the newly selected program");
+}
+
+static void request_program_delete() {
+  bool queued = true;
+  int repeat = 77;
+  assert(!core_program_request_delete(&queued, &repeat) && !queued && repeat == 0);
+  core_keyup();
+}
+
+static void delete_program() {
+  request_program_delete();
+  press(KEY_ENTER);
+}
+
+static void test_delete_current_program() {
+  fixture f = setup();
+  const auto original = programs();
+  flags.f.prgm_mode = false;
+  request_program_delete();
+  check(!core_menu() && programs() == original, "normal mode cannot request deletion");
+  flags.f.prgm_mode = true;
+
+  request_program_delete();
+  check(core_menu() && pc == f.sto_first && programs() == original,
+      "DelPG opens a menu and waits before editing the program");
+  press(KEY_EXIT);
+  check(!core_menu() && pc == f.sto_first && programs() == original,
+      "EXIT cancels deletion without moving or changing the program");
+
+  request_program_delete();
+  press(KEY_SHIFT);
+  press(KEY_ENTER);
+  check(!core_menu() && programs() == original,
+      "shifted ENTER neither confirms deletion nor inserts a program instruction");
+
+  request_program_delete();
+  current_prgm = f.target_program;
+  pc = 0;
+  press(KEY_ENTER);
+  check(!core_menu() && programs() == original, "ENTER cannot delete a changed selection");
+  current_prgm = f.main_program;
+  pc = f.sto_first;
+
+  request_program_delete();
+  prgms[current_prgm].locked = true;
+  press(KEY_ENTER);
+  check(!core_menu() && flags.f.message && programs() == original,
+      "ENTER rechecks the lock before deleting the program");
+  request_program_delete();
+  check(!core_menu() && flags.f.message && programs() == original,
+      "a locked program cannot prompt for confirmation");
+  prgms[current_prgm].locked = false;
+
+  delete_program();
+  check(!core_menu() && prgms_count == 1 && current_prgm == 0 && pc == -1
+      && program() == original.back(), "ENTER removes only the selected program and selects its successor");
+  arg_struct main_label = named("MAIN"), target_label = named("TARGET");
+  int target_program;
+  int4 target_pc;
+  check(!find_global_label(&main_label, &target_program, &target_pc)
+      && find_global_label(&target_label, &target_program, &target_pc)
+      && target_program == 0 && target_pc == 0,
+      "deletion removes the old labels and reindexes the surviving program");
+
+  bool queued;
+  int repeat;
+  core_undo(&queued, &repeat); core_keyup();
+  check(programs() == original && current_prgm == f.main_program && pc == f.sto_first,
+      "UNDO restores the deleted program and its cursor position");
+  core_redo(&queued, &repeat); core_keyup();
+  check(prgms_count == 1 && pc == -1 && program() == original.back(),
+      "REDO reapplies the confirmed deletion");
+
+  delete_program();
+  check(prgms_count == 1 && current_prgm == 0 && pc == -1
+      && labels_count == 1 && labels[0].prgm == 0 && labels[0].pc == 0
+      && program_commands() == std::vector<int>({CMD_END}),
+      "deleting the only program leaves a valid empty editor");
+
+  const auto empty = program();
+  insert_program_after();
+  append(CMD_LBL, target_label);
+  delete_program();
+  check(prgms_count == 1 && current_prgm == 0 && pc == -1 && program() == empty,
+      "deleting the last of multiple programs selects the preceding empty program");
+
+  f = setup();
+  current_prgm = f.target_program;
+  pc = 0;
+  delete_program();
+  check(prgms_count == 1 && current_prgm == f.main_program && pc == -1
+      && program() == original.front(),
+      "deleting the last program leaves only its nonempty predecessor");
+  check(!find_global_label(&target_label, &target_program, &target_pc)
+      && find_global_label(&main_label, &target_program, &target_pc)
+      && target_program == f.main_program && target_pc == 0,
+      "deleting the last program removes its labels and retains the preceding program's labels");
+  core_undo(&queued, &repeat); core_keyup();
+  check(programs() == original && current_prgm == f.target_program && pc == 0,
+      "UNDO restores the deleted last program and its cursor position");
+}
+
+static void test_delete_confirmation_state_load() {
+  hard_reset(0);
+  flags.f.prgm_mode = true;
+  append(CMD_LBL, named("KEEP"));
+  const auto original = programs();
+  request_program_delete();
+  assert(core_menu());
+
+  char state_path[] = "/tmp/free42-delpg-state-XXXXXX";
+  const int fd = mkstemp(state_path);
+  assert(fd >= 0);
+  close(fd);
+  core_save_state(state_path);
+  core_cleanup();
+  core_init(1, 0, state_path, 0);
+  unlink(state_path);
+
+  check(flags.f.prgm_mode && !core_menu() && programs() == original,
+      "loading a state preserves programs and drops the transient deletion menu");
+  press(KEY_ENTER);
+  check(program_commands() == std::vector<int>({CMD_LBL, CMD_ENTER, CMD_END}),
+      "ENTER after loading a state performs normal program entry");
+}
+
 static void shifted_arrow(int key) { press(KEY_SHIFT); press(key); }
 
 static void test_program_step() {
@@ -247,6 +425,17 @@ static void begin_find_downward() {
 }
 
 static void again() { bool queued=true; int repeat=77; core_repeat_last_command(&queued,&repeat); assert(!queued&&repeat==0); core_keyup(); }
+
+static void test_delete_only_program_preserves_again() {
+  hard_reset(0);
+  flags.f.prgm_mode = true;
+  press(KEY_ADD);
+  delete_program();
+  again();
+  check(prgms_count == 1 && program_commands() == std::vector<int>({CMD_ADD, CMD_END}),
+      "AGAIN repeats the previous instruction after deleting the only program");
+}
+
 static void enter_command_query(const char *command) {
   bool queued;
   int repeat;
@@ -709,6 +898,10 @@ int main() {
   setbuf(stdout, NULL);
   core_init(0, 0, NULL, 0);
   test_label_jump();
+  test_insert_program_after();
+  test_delete_current_program();
+  test_delete_only_program_preserves_again();
+  test_delete_confirmation_state_load();
   test_program_step();
   test_follow_and_find();
   test_reverse_find();

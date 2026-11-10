@@ -3,6 +3,8 @@
  * This program is free software under the GNU General Public License, version 2.
  */
 #include "core_program_tools_custom.h"
+#include <algorithm>
+#include <stdlib.h>
 #include <string.h>
 #include "core_main.h"
 #include "core_keydown.h"
@@ -19,6 +21,7 @@ namespace {
 enum find_input_mode { FIND_INACTIVE, FIND_COMMAND, FIND_TEXT };
 static find_input_mode find_input = FIND_INACTIVE;
 static bool find_reverse = false;
+static int delete_program_index = -1;
 
 struct find_query {
     bool reverse;
@@ -76,6 +79,106 @@ static void move_editor(int program, int position) {
     pc = position;
     clear_all_rtns();
     prgm_highlight_row = 1;
+    redisplay();
+}
+
+static const unsigned char empty_program_end[] = { CMD_END, ARGTYPE_NONE };
+
+static unsigned char *prepare_empty_program(int required_programs, int required_labels) {
+    // Reserve space for the final table sizes without changing their entries.
+    if (required_programs > prgms_capacity) {
+        int capacity = std::max(required_programs, prgms_capacity + 10);
+        prgm_struct *grown = (prgm_struct *) realloc(prgms, capacity * sizeof(prgm_struct));
+        if (grown == NULL)
+            return NULL;
+        prgms = grown;
+        prgms_capacity = capacity;
+    }
+    if (required_labels > labels_capacity) {
+        int capacity = std::max(required_labels, labels_capacity + 50);
+        label_struct *grown = (label_struct *) realloc(labels, capacity * sizeof(label_struct));
+        if (grown == NULL)
+            return NULL;
+        labels = grown;
+        labels_capacity = capacity;
+    }
+    unsigned char *text = (unsigned char *) malloc(sizeof(empty_program_end));
+    if (text != NULL)
+        memcpy(text, empty_program_end, sizeof(empty_program_end));
+    return text;
+}
+
+static void insert_empty_program(int index, unsigned char *text) {
+    memmove(prgms + index + 1, prgms + index, (prgms_count - index) * sizeof(prgm_struct));
+    prgms[index] = { sizeof(empty_program_end), sizeof(empty_program_end), true, false, text };
+    prgms_count++;
+
+    // Existing instructions and label offsets are unchanged. Shift the later
+    // label entries and add the empty program's END to the catalog.
+    int label = labels_count;
+    while (label > 0 && labels[label - 1].prgm >= index) {
+        labels[label] = labels[label - 1];
+        labels[label].prgm++;
+        label--;
+    }
+    labels[label] = { 0, {}, index, 0 };
+    labels_count++;
+}
+
+static void delete_program_by_index(int index) {
+    unsigned char *replacement = NULL;
+    if (prgms_count == 1) {
+        // Reserve a replacement before removing the only program so an
+        // allocation failure leaves the original program intact.
+        replacement = prepare_empty_program(1, 1);
+        if (replacement == NULL) {
+            display_error(ERR_INSUFFICIENT_MEMORY);
+            return;
+        }
+    }
+
+    clear_all_rtns();
+    free(prgms[index].text);
+    prgms_count--;
+    memmove(prgms + index, prgms + index + 1, (prgms_count - index) * sizeof(prgm_struct));
+
+    // Drop labels from the deleted program and reindex the programs that moved.
+    int retained_labels = 0;
+    for (int i = 0; i < labels_count; i++) {
+        label_struct label = labels[i];
+        if (label.prgm == index)
+            continue;
+        if (label.prgm > index)
+            label.prgm--;
+        labels[retained_labels++] = label;
+    }
+    labels_count = retained_labels;
+
+    if (prgms_count == 0)
+        insert_empty_program(0, replacement);
+
+    // The next program takes the deleted slot unless that slot was last.
+    current_prgm = index < prgms_count ? index : index - 1;
+    pc = -1;
+    prgm_highlight_row = 0;
+    update_catalog();
+}
+
+static void delete_confirmation_keydown(int shift, int key) {
+    const int index = delete_program_index;
+    delete_program_index = -1;
+    const bool showing_confirmation = mode_transientmenu == MENU_BLANK
+        && get_front_menu() == MENU_BLANK;
+    if (mode_transientmenu == MENU_BLANK)
+        set_menu(MENULEVEL_TRANSIENT, MENU_NONE);
+
+    if (showing_confirmation && !shift && key == KEY_ENTER && flags.f.prgm_mode
+            && current_prgm == index && index < prgms_count) {
+        if (prgms[index].locked)
+            display_error(ERR_PROGRAM_LOCKED);
+        else
+            delete_program_by_index(index);
+    }
     redisplay();
 }
 
@@ -258,9 +361,37 @@ bool core_program_find_downward(bool *enqueued, int *repeat) {
     return start_program_find(false, enqueued, repeat);
 }
 
-bool custom_program_find_keydown(int shift, int key) {
-    if (find_input == FIND_INACTIVE)
+bool core_program_insert_after(bool *enqueued, int *repeat) {
+    custom_history_scope history;
+    if (!editor_action_ready(enqueued, repeat))
         return false;
+    unsigned char *text = prepare_empty_program(prgms_count + 1, labels_count + 1);
+    if (text == NULL) {
+        display_error(ERR_INSUFFICIENT_MEMORY);
+        redisplay();
+        return false;
+    }
+    const int index = current_prgm + 1;
+    insert_empty_program(index, text);
+    move_editor(index, -1);
+    return false;
+}
+
+bool core_program_request_delete(bool *enqueued, int *repeat) {
+    if (!editor_action_ready(enqueued, repeat))
+        return false;
+    if (prgms[current_prgm].locked) {
+        display_error(ERR_PROGRAM_LOCKED);
+    } else {
+        delete_program_index = current_prgm;
+        // A transient blank menu keeps HOME actions out of the confirmation.
+        set_menu(MENULEVEL_TRANSIENT, MENU_BLANK);
+    }
+    redisplay();
+    return false;
+}
+
+static bool find_keydown(int shift, int key) {
     if (!flags.f.prgm_mode) {
         custom_program_tools_reset();
         return false;
@@ -295,6 +426,16 @@ bool custom_program_find_keydown(int shift, int key) {
         squeak();
         return true;
     }
+    return false;
+}
+
+bool custom_program_editor_keydown(int shift, int key) {
+    if (delete_program_index >= 0) {
+        delete_confirmation_keydown(shift, key);
+        return true;
+    }
+    if (find_input != FIND_INACTIVE)
+        return find_keydown(shift, key);
     return false;
 }
 
@@ -350,8 +491,16 @@ bool custom_program_find_draw_incomplete(int row) {
     return true;
 }
 
-void custom_program_find_draw_prompt() {
-    if (find_input != FIND_COMMAND || !flags.f.prgm_mode || flags.f.message)
+static void draw_delete_confirmation_prompt() {
+    if (mode_transientmenu != MENU_BLANK || get_front_menu() != MENU_BLANK || !flags.f.prgm_mode)
+        return;
+    const char prompt[] = "DelPG? ENTER / EXIT";
+    clear_row(0);
+    draw_string(0, 0, prompt, sizeof(prompt) - 1);
+}
+
+static void draw_find_prompt() {
+    if (!flags.f.prgm_mode || flags.f.message)
         return;
     const int row = core_menu() ? 0 : prgm_highlight_row;
     clear_row(row);
@@ -360,7 +509,22 @@ void custom_program_find_draw_prompt() {
     draw_string(strlen(prompt), row, " _", 2);
 }
 
+void custom_program_editor_draw_prompt() {
+    if (delete_program_index >= 0)
+        draw_delete_confirmation_prompt();
+    else if (find_input == FIND_COMMAND)
+        draw_find_prompt();
+}
+
 void custom_program_tools_reset() {
     find_input = FIND_INACTIVE;
     find_reverse = false;
+    delete_program_index = -1;
+    // DelPG owns the transient blank menu. A saved menu can outlive the
+    // confirmation, so discard both it and its saved prompt on state load.
+    if (mode_transientmenu == MENU_BLANK) {
+        mode_transientmenu = MENU_NONE;
+        if (loading_state)
+            clear_display();
+    }
 }

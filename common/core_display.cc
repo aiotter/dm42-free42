@@ -2546,7 +2546,7 @@ void redisplay() {
         }
     }
 
-    custom_program_find_draw_prompt();
+    custom_program_editor_draw_prompt();
     flush_display();
 }
 

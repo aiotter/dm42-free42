@@ -28,6 +28,8 @@ The key assignments are defined in [core_home_menu_custom.cc](common/core_home_m
 - `LBLs` (F1) lets you select a label and move the cursor to it.
 - `JUMP` (F2) jumps to the label targeted by the `GTO` or `XEQ` instruction at the cursor.
 - `FIND` (F3) moves to the next matching command or text in the current program.
+- `NewPG` (F4) inserts an empty program immediately after the current one and opens it at line 00.
+- `DelPG` (Shift+F4) deletes the current unlocked program.
 
 ### History controls
 

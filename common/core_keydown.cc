@@ -182,7 +182,7 @@ void keydown(int shift, int key) {
 
     pending_command = CMD_NONE;
 
-    if (custom_program_find_keydown(shift, key)) return;
+    if (custom_program_editor_keydown(shift, key)) return;
 
     if (key >= 1024 && key < 2048) {
         /* TODO: is this actually needed?

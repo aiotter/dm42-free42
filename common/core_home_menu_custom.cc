@@ -36,7 +36,7 @@ constexpr home_slot program_home[CORE_HOME_KEY_COUNT] = {
     { bind("LBLs", core_program_label_jump), {} },
     { bind("JUMP", core_program_follow), {} },
     { bind("FIND\016", core_program_find_downward), bind("FIND^", core_program_find_upward) },
-    {},
+    { bind("NewPG", core_program_insert_after), bind("DelPG", core_program_request_delete) },
     { bind("AGAIN", core_repeat_last_command), {} },
     { bind("UNDO", core_undo), bind("REDO", core_redo) }
 };
