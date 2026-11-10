@@ -1,6 +1,8 @@
 #include "core_home_menu_custom.h"
 
 #include "core_globals.h"
+#include "core_keydown.h"
+#include "core_tables.h"
 
 namespace {
 
@@ -14,9 +16,14 @@ constexpr core_home_binding bind(const char (&label)[Size], bool (*action)(bool 
     return { label, Size - 1, action };
 }
 
+template<int Command>
+bool run_command(bool *enqueued, int *repeat) {
+    return core_keydown_command_id(Command, enqueued, repeat);
+}
+
 constexpr home_slot normal_home[CORE_HOME_KEY_COUNT] = {
-    {},
-    {},
+    { bind("%", run_command<CMD_PERCENT>), bind("%CH", run_command<CMD_PERCENT_CH>) },
+    { bind("nCr", run_command<CMD_COMB>), bind("nPr", run_command<CMD_PERM>) },
     {},
     {},
     {},

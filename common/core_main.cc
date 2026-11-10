@@ -312,6 +312,15 @@ bool core_keydown_command(const char *name, bool is_text, bool *enqueued, int *r
     }
 }
 
+bool core_keydown_command_id(int command, bool *enqueued, int *repeat) {
+    if (command < 0 || command >= CMD_SENTINEL) {
+        set_shift(false);
+        squeak();
+        return core_keydown_2(0, enqueued, repeat);
+    }
+    return core_keydown_2(command + 2048, enqueued, repeat);
+}
+
 static bool core_keydown_2(int key, bool *enqueued, int *repeat) {
 
     *enqueued = 0;
